@@ -1,6 +1,7 @@
 var mm = {
 	width: 1024,
 	height: 768,
+	TILE_SIZE: 24,
 	scenes: {mainMenu: null, practice: null},
 	scene: null,
 	switchboard: {},
@@ -92,8 +93,8 @@ var mm = {
 	},
 
 	preload: function() {
-	    mm.game.load.spritesheet('world', 		'./game/res/bitmaps/world.png',		24, 24);
-	    mm.game.load.spritesheet('creatures', 	'./game/res/bitmaps/creatures.png', 24, 24);
+	    mm.game.load.image('world', 		'./game/res/bitmaps/world.png',		24, 24);
+	    mm.game.load.image('creatures', 	'./game/res/bitmaps/creatures.png', 24, 24);
 
 	    mm.game.load.bitmapFont('charybdis_72', './game/res/fonts/charybdis_72/font.png', './game/res/fonts/charybdis_72/font.fnt');
 	},
@@ -102,12 +103,12 @@ var mm = {
 		var key = null;
 		var ctxt = null;
 
-		mm.game.stage.backgroundColor = "#0077ff";
 		mm.cursorKeys = mm.game.input.keyboard.createCursorKeys();
 		mm.cursorKeys['enter'] = mm.game.input.keyboard.addKey(Phaser.Keyboard.ENTER);
 
 		mm.listenFor('addKeyAction', mm);
 		mm.listenFor('removeKeyAction', mm);
+		mm.listenFor('loadScene', mm);
 
 		for (key in mm.scenes) {
 			mm.assert(mm.scenes[key], "undefined scene (" + key + ")");
@@ -149,6 +150,12 @@ var mm = {
 	},
 
 	// Message Handlers ///////////////////////////////////////////////////////
+	loadScene: function(sceneName) {
+		this.assert(sceneName, '(loadScene) invalid scene name');
+		
+		this.startScene(this.scenes[sceneName]);
+	},
+
 	addKeyAction: function(keyActionAssoc) {
 		var keys = keyActionAssoc ? Object.keys(keyActionAssoc) : null;
 

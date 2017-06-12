@@ -48,6 +48,7 @@ mm.scenes.mainMenu = {
 	start: function() {
 		this.selectedItem = 0;
 		this.enable(true);
+		mm.game.stage.backgroundColor = "#0077ff";
 
 		mm.broadcast('addKeyAction', {up: this.onSelectMenuPrev.bind(this)});
 		mm.broadcast('addKeyAction', {down: this.onSelectMenuNext.bind(this)});
@@ -133,7 +134,7 @@ mm.scenes.mainMenu = {
 				break;
 
 				case 'practice':
-					console.log("<<< PRACTICE >>>");
+					mm.broadcast('loadScene', 'practice');
 				break;
 
 				case 'play':
