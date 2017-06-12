@@ -30,7 +30,7 @@ mm.scenes.mainMenu = {
 			this.menuItems[i].anchor.y = 0.5;
 			this.menuItems[i].position.y = totalHeight * (1.0 + this.SPACING_FACTOR_Y);
 
-			this.menuItems[i].events.onInputOver.add(this.onMouseOver, this);
+			this.menuItems[i].events.onInputOver.add(this.selectMenuItem, this);
 			this.menuItems[i].events.onInputDown.add(this.onPress, this);
 			this.menuItems[i].events.onInputUp.add(this.onRelease, this);
 
@@ -39,7 +39,7 @@ mm.scenes.mainMenu = {
 			this.menuItems[i].inputEnabled = true;
 		}
 
-		this.selectedItem = -1;
+		this.end();
 	},
 
 	render: function(stageCtxt) {
@@ -48,13 +48,38 @@ mm.scenes.mainMenu = {
 	start: function() {
 		this.selectedItem = 0;
 		this.enable(true);
+
+		mm.broadcast('addKeyAction', {up: this.onSelectMenuPrev.bind(this)});
+		mm.broadcast('addKeyAction', {down: this.onSelectMenuNext.bind(this)});
+		mm.broadcast('addKeyAction', {enter: this.onActivateMenuItem.bind(this)});
 	},
 
 	end: function() {
+		this.selectedItem = -1;
 		this.enable(false);
+
+		mm.broadcast('removeKeyAction', {up: this.onSelectMenuPrev.bind(this)});
+		mm.broadcast('removeKeyAction', {down: this.onSelectMenuNext.bind(this)});
+		mm.broadcast('removeKeyAction', {enter: this.onActivateMenuItem.bind(this)});
 	},
 
 	// Implementation /////////////////////////////////////////////////////////
+	onActivateMenuItem: function() {
+		if (this.selectedItem >= 0 && this.selectedItem < this.menuItems.length) {
+			this.onRelease(this.menuItems[this.selectedItem]);
+		}
+	},
+
+	onSelectMenuPrev: function() {
+		var iSelected = (this.selectedItem - 1 + this.menuItems.length) % this.menuItems.length;
+		this.selectMenuItem(this.menuItems[iSelected]);
+	},
+
+	onSelectMenuNext: function() {
+		var iSelected = (this.selectedItem + 1 + this.menuItems.length) % this.menuItems.length;
+		this.selectMenuItem(this.menuItems[iSelected]);
+	},
+
 	enable: function(bEnable) {
 		var i = 0;
 
@@ -82,7 +107,7 @@ mm.scenes.mainMenu = {
 	},
 
 	// Input Handlers /////////////////////////////////////////////////////////
-	onMouseOver: function(menuItem) {
+	selectMenuItem: function(menuItem) {
 		var index = this.menuItems.indexOf(menuItem);
 
 		if (this.selectedItem != index) {

@@ -4,6 +4,7 @@ var mm = {
 	scenes: {mainMenu: null, practice: null},
 	scene: null,
 	switchboard: {},
+	cursorKeys: null,
 
 	listenFor: function(message, listener) {
 		var listeners = null;
@@ -49,17 +50,19 @@ var mm = {
 		this.assert(message, "(broadcast) invalid message");
 
 		var listeners = null;
+		var listener = null;
 		var i = 0;
 
-		listeners = this.switchboard(message);
+		listeners = this.switchboard[message];
 
 		for (i=0; listeners && i<listeners.length; ++i) {
+			listener = listeners[i];
 			this.assert(listener && listener.hasOwnProperty(message), "(broadcast) invalid listener or missing handler");
 			listener[message](data);			
 		}
 	},
 
-	removeElementFromArray: function(element, array bPreserveOrder) {
+	removeElementFromArray: function(element, array, bPreserveOrder) {
 		this.assert(array, "(removeElementFromArray) invalid array");
 
 		var index = array.indexOf(element);
@@ -100,6 +103,11 @@ var mm = {
 		var ctxt = null;
 
 		mm.game.stage.backgroundColor = "#0077ff";
+		mm.cursorKeys = mm.game.input.keyboard.createCursorKeys();
+		mm.cursorKeys['enter'] = mm.game.input.keyboard.addKey(Phaser.Keyboard.ENTER);
+
+		mm.listenFor('addKeyAction', mm);
+		mm.listenFor('removeKeyAction', mm);
 
 		for (key in mm.scenes) {
 			mm.assert(mm.scenes[key], "undefined scene (" + key + ")");
@@ -138,7 +146,24 @@ var mm = {
 				mm.scene = newScene;
 			}
 		}
-	}
+	},
+
+	// Message Handlers ///////////////////////////////////////////////////////
+	addKeyAction: function(keyActionAssoc) {
+		var keys = keyActionAssoc ? Object.keys(keyActionAssoc) : null;
+
+		this.assert(keys && keys.length === 1, "(addKeyAction) invalid args");
+
+		this.cursorKeys[keys[0]].onUp.add(keyActionAssoc[keys[0]]);
+	},
+
+	removeKeyAction: function(keyActionAssoc) {
+		var keys = keyActionAssoc ? Object.keys(keyActionAssoc) : null;
+
+		this.assert(keys && keys.length === 1, "(addKeyAction) invalid args");
+
+		this.cursorKeys[keys[0]].onDown.remove(keyActionAssoc[keys[0]]);
+	},
 };
 
 
