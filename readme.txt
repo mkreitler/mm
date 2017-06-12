@@ -22,4 +22,12 @@ NOTES
 
 
 
-50
+Tomorrow:
+Register car
+Laundy
+Vacuum
+Mop floor
+Organize office
+Plan trip
+Talk to Doug?
+Wash dogs?

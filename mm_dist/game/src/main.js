@@ -1,51 +1,144 @@
 var mm = {
-	ePos: {TOP: 0, MID: 1, LOW: 2},
 	width: 1024,
 	height: 768,
-	canvasBuffer: [null, null, null],
+	scenes: {mainMenu: null, practice: null},
+	scene: null,
+	switchboard: {},
+
+	listenFor: function(message, listener) {
+		var listeners = null;
+
+		this.assert(message && listener, "(listenFor) invalid message or listener");
+
+		listeners = this.switchboard[message];
+
+		if (!listeners) {
+			listeners = [];
+		}
+
+		if (listeners.indexOf(listener) < 0) {
+			listeners.push(listener);
+			this.switchboard[message] = listeners;
+		}
+	},
+
+	unlistenFor: function(message, listener) {
+		var listeners = null;
+
+		this.assert(message && listener, "(listenFor) invalid message or listener");
+
+		listeners = this.switchboard[message];
+
+		if (listeners) {
+			this.removeElementFromArray(listener, listeners);
+		}
+	},
+
+	unlistenForAll: function(listener) {
+		this.assert(listener, "(unlistenForAll) invalid listener");
+
+		var listeners = null;
+		var key = null;
+
+		for (key in this.switchboard) {
+			this.unlistenFor(key, listener);
+		}
+	},
+
+	broadcast: function(message, data) {
+		this.assert(message, "(broadcast) invalid message");
+
+		var listeners = null;
+		var i = 0;
+
+		listeners = this.switchboard(message);
+
+		for (i=0; listeners && i<listeners.length; ++i) {
+			this.assert(listener && listener.hasOwnProperty(message), "(broadcast) invalid listener or missing handler");
+			listener[message](data);			
+		}
+	},
+
+	removeElementFromArray: function(element, array bPreserveOrder) {
+		this.assert(array, "(removeElementFromArray) invalid array");
+
+		var index = array.indexOf(element);
+		var i = 0;
+
+		if (index >= 0) {
+			if (index != array.length - 1) {
+				if (bPreserveOrder) {
+					for (i=index; i<array.length - 1; ++i) {
+						array[i] = array[i + 1];
+					}
+				}
+				else {
+					array[index] = array[array.length - 1];
+				}
+			}
+
+			array.length = array.length - 1;
+		}
+	},
+
+	assert: function(test, msg) {
+		if (!test) {
+			console.log("ASSERT FAILED: " + msg);
+			debugger;
+		}
+	},
 
 	preload: function() {
-	    mm.game.load.image('world', 		'./game/res/bitmaps/world.png');
-	    mm.game.load.image('creatures', 	'./game/res/bitmaps/creatures.png');
+	    mm.game.load.spritesheet('world', 		'./game/res/bitmaps/world.png',		24, 24);
+	    mm.game.load.spritesheet('creatures', 	'./game/res/bitmaps/creatures.png', 24, 24);
+
+	    mm.game.load.bitmapFont('charybdis_72', './game/res/fonts/charybdis_72/font.png', './game/res/fonts/charybdis_72/font.fnt');
 	},
 
 	create: function() {
 		var key = null;
 		var ctxt = null;
 
-		for (key in mm.ePos) {
-			mm.canvasBuffer[mm.ePos[key]] = mm.game.add.bitmapData(mm.width, mm.height / 3, key.toLowerCase() + "canvasBufferture");
+		mm.game.stage.backgroundColor = "#0077ff";
+
+		for (key in mm.scenes) {
+			mm.assert(mm.scenes[key], "undefined scene (" + key + ")");
+			if (mm.scenes[key].hasOwnProperty('create')) {
+				mm.scenes[key].create();
+			}
 		}
 
-		ctxt = mm.canvasBuffer[mm.ePos.TOP].canvas.getContext('2d');
-		ctxt.fillStyle = 'green';
-		ctxt.fillRect(0, 0, mm.canvasBuffer[mm.ePos.TOP].width, mm.canvasBuffer[mm.ePos.TOP].height);
-
-		ctxt = mm.canvasBuffer[mm.ePos.MID].canvas.getContext('2d'); 
-		ctxt.fillStyle = '#00FFFF';
-		ctxt.fillRect(0, 0, mm.canvasBuffer[mm.ePos.MID].width, mm.canvasBuffer[mm.ePos.MID].height);
-
-		ctxt = mm.canvasBuffer[mm.ePos.LOW].canvas.getContext('2d');
-		ctxt.fillStyle = 'blue';
-		ctxt.fillRect(0, 0, mm.canvasBuffer[mm.ePos.LOW].width, mm.canvasBuffer[mm.ePos.LOW].height);
+		// Display the main menu.
+		mm.startScene(mm.scenes.mainMenu);
 	},
 
 	update :function() {
-
+		if (mm.scene && mm.scene.hasOwnProperty('update')) {
+			mm.scene.update();
+		}
 	},
 
 	render: function() {
-		var key = null;
-		var bufferY = 0;
-		var stageCtxt = mm.game.canvas.getContext('2d');
+		if (mm.scene && mm.scene.hasOwnProperty('render')) {
+			mm.scene.render(mm.game.canvas.getContext('2d'));
+		}
+	},
 
-		for (key in mm.ePos) {
-			stageCtxt.drawImage(mm.canvasBuffer[mm.ePos[key]].canvas, 0, bufferY);
-			bufferY += mm.canvasBuffer[mm.ePos[key]].height;
+	startScene: function(newScene) {
+		if (newScene) {
+			if (mm.scene != newScene) {
+				if (mm.scene && mm.scene.hasOwnProperty('end')) {
+					mm.scene.end();
+				}
+
+				if (newScene && newScene.hasOwnProperty('start')) {
+					newScene.start();
+				}
+
+				mm.scene = newScene;
+			}
 		}
 	}
 };
-
-mm.game = new Phaser.Game(mm.width, mm.height, Phaser.CANVAS, 'Monster Multiplier', { preload: mm.preload, create: mm.create, update: mm.update, render: mm.render });
 
 
