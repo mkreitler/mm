@@ -50,6 +50,12 @@ mm.scenes.practice = {
 			this.dragRow = this.room.getRowFromScreen(mm.game.input.mousePointer.y);
 			this.dragCol = this.room.getColFromScreen(mm.game.input.mousePointer.x);
 
+			this.dragRow = Math.min(this.dragRow, this.room.height - 1);
+			this.dragRow = Math.max(this.dragRow, 0);
+
+			this.dragCol = Math.min(this.dragCol, this.room.width - 1);
+			this.dragCol = Math.max(this.dragCol, 0);
+
 			// this.title.text = "(" +
 			// 			 Math.min(this.dragStartCol, this.dragCol) + ", " +
 			// 			 Math.min(this.dragStartRow, this.dragRow) + ") to (" +
@@ -226,6 +232,16 @@ mm.scenes.practice = {
 		}
 	},
 
+/////////////////////////////////////////////////////////////////////////////////////////
+//   .oooooo.             oooo  oooo   .o8                           oooo                 
+//  d8P'  `Y8b            `888  `888  "888                           `888                 
+// 888           .oooo.    888   888   888oooo.   .oooo.    .ooooo.   888  oooo   .oooo.o 
+// 888          `P  )88b   888   888   d88' `88b `P  )88b  d88' `"Y8  888 .8P'   d88(  "8 
+// 888           .oP"888   888   888   888   888  .oP"888  888        888888.    `"Y88b.  
+// `88b    ooo  d8(  888   888   888   888   888 d8(  888  888   .o8  888 `88b.  o.  )88b 
+//  `Y8bood8P'  `Y888""8o o888o o888o  `Y8bod8P' `Y888""8o `Y8bod8P' o888o o888o 8""888P' 
+/////////////////////////////////////////////////////////////////////////////////////////
+
 	// Input Handlers /////////////////////////////////////////////////////////
 	onChildInputUp: function(sprite, pointer) {
 		this.bUserDragging = false;
@@ -235,11 +251,21 @@ mm.scenes.practice = {
 
 	onChildInputDown: function(sprite, pointer) {
 		this.bUserDragging = true;
-		this.showLabels();
 
 		if (this.room) {
 			this.dragStartRow = this.room.getRowFromScreen(pointer.y);
 			this.dragStartCol = this.room.getColFromScreen(pointer.x);
+
+			if (this.dragStartRow < 0 ||
+				this.dragStartRow >= this.room.height ||
+				this.dragStartCol < 0 ||
+				this.dragStartCol >= this.room.width) {
+				this.bUserDragging = false;
+			}
+		}
+
+		if (this.bUserDragging) {
+			this.showLabels();
 		}
 	},
 
