@@ -36,19 +36,22 @@ mm.scenes.practice = {
 
 	start: function() {
 		mm.game.stage.backgroundColor = "#AAAAAA";
+		mm.game.input.onTap.add(this.onTap, this);
 		this.enable(true);
+		this.hideLabels();
 		mm.broadcast('addKeyAction', {enter: this.onRegenerate.bind(this)});
 	},
 
 	end: function() {
 		this.enable(false);
+		mm.game.input.onTap.remove(this.onTap, this);
 		mm.broadcast('removeKeyAction', {enter: this.onRegenerate.bind(this)});
 	},
 
 	update: function() {
 		if (this.bUserDragging) {
-			this.dragRow = this.room.getRowFromScreen(mm.game.input.mousePointer.y);
-			this.dragCol = this.room.getColFromScreen(mm.game.input.mousePointer.x);
+			this.dragRow = this.room.getRowFromScreen(mm.game.input.activePointer.y);
+			this.dragCol = this.room.getColFromScreen(mm.game.input.activePointer.x);
 
 			this.dragRow = Math.min(this.dragRow, this.room.height - 1);
 			this.dragRow = Math.max(this.dragRow, 0);
@@ -128,7 +131,7 @@ mm.scenes.practice = {
 
 		y -= Math.round(unit / 2);
 		for (i=0; i<dRow; ++i) {
-			ctxt.strokeStyle = "#888888";
+			ctxt.strokeStyle = "#004400";
 			for (j=0; j<dCol; ++j) {
 				ctxt.strokeRect(x + j * unit, y, unit, unit);
 			}
@@ -243,6 +246,10 @@ mm.scenes.practice = {
 /////////////////////////////////////////////////////////////////////////////////////////
 
 	// Input Handlers /////////////////////////////////////////////////////////
+	onTap: function(image) {
+		this.onRegenerate();
+	},
+
 	onChildInputUp: function(sprite, pointer) {
 		this.bUserDragging = false;
 		this.title.text = "Practice Mode";
