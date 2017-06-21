@@ -2,14 +2,17 @@ mm.scenes.practice = {
 	SPACING_FACTOR_Y: 0.05,
 	SELECTED_CHAR: '*',
 	DRAG_ALPHA: 0.33,
-	UI_GROUP_Y_FACTOR: (1.0 / 12.0),
+	UI_GROUP_Y_FACTOR: (1.0 / 20.0),
 	NUMBER_LINE_MAX_UNIT: 40,
 	NUMBER_LINE_MIN_UNIT: 10,
+	NUMBER_LINE_HEIGHT: (1 / 7),
+	SCENE_BACK_COLOR: "#888888",
+	UI_GROUP_COLOR: "#CCCCCC",
 
 	uiGroup: null,
 	title: null,
 	centerBand: null,
-	labels: {origin: null, range: null, value: null},
+	labels: {value: null, rowFactor: null, colFactor: null},
 
 	roomGroup: null,
 	room: null,
@@ -27,15 +30,15 @@ mm.scenes.practice = {
 
 	// Scene Interface ////////////////////////////////////////////////////////
 	create: function() {
-		this.createUiElements();
 		this.createAdventurerElements();
 		this.createRoomElements();
+		this.createUiElements();
 
 		this.end();
 	},
 
 	start: function() {
-		mm.game.stage.backgroundColor = "#AAAAAA";
+		mm.game.stage.backgroundColor = this.SCENE_BACK_COLOR;
 		mm.game.input.onTap.add(this.onTap, this);
 		this.enable(true);
 		this.hideLabels();
@@ -82,14 +85,15 @@ mm.scenes.practice = {
 		var maxCol = Math.max(this.dragStartCol, this.dragCol);
 		var cornerX = this.room.cornerX();
 		var cornerY = this.room.cornerY();
+		var tileSize = this.room.tileSize();
 
 		ctxt.fillStyle = this.room.areaClear(minRow, minCol, maxRow, maxCol) ? "green" : "red";
 		ctxt.globalAlpha = this.DRAG_ALPHA;
 
-		ctxt.fillRect(cornerX + minCol * mm.TILE_SIZE,
-					  cornerY + minRow * mm.TILE_SIZE,
-					  (maxCol - minCol + 1) * mm.TILE_SIZE,
-					  (maxRow - minRow + 1) * mm.TILE_SIZE);
+		ctxt.fillRect(cornerX + minCol * tileSize,
+					  cornerY + minRow * tileSize,
+					  (maxCol - minCol + 1) * tileSize,
+					  (maxRow - minRow + 1) * tileSize);
 
 		ctxt.globalAlpha = 1.0;
 	},
@@ -109,27 +113,27 @@ mm.scenes.practice = {
 
 		unit = this.NUMBER_LINE_MIN_UNIT;
 
-		var xRange = Math.floor(total / 10 + 0.9999) * 10;
+		var xRange = total; // Math.floor(total / 10 + 0.9999) * 10;
 		var dx = xRange * unit;
 
 		ctxt.fillStyle = "green";
-		x = Math.round(mm.game.width / 2 - dx / 2);
-		y = Math.round(mm.game.height * 1 / 4);	// <-- TODO: make this a constant
+		x = Math.round(mm.game.width / 2 - dx / 2) + Math.round(unit / 2);
+		y = Math.round(mm.game.height * this.NUMBER_LINE_HEIGHT);	// <-- TODO: make this a constant
 		ctxt.fillRect(x, y - Math.round(unit / 2), dx, unit);
 
-		this.labels.origin.text = "0";
-		this.labels.origin.y = y + Math.round(unit / 2) - this.uiGroup.position.y;
-		this.labels.origin.x = x - this.uiGroup.position.x;
-
-		this.labels.range.text = "" + xRange;
-		this.labels.range.y = this.labels.origin.y;
-		this.labels.range.x = x + dx - this.uiGroup.position.x;
-
-		this.labels.value.text = "" + total;
-		this.labels.value.y = this.labels.origin.y - Math.round(unit / 2);
-		this.labels.value.x = x + total * unit + Math.round(unit / 2) - this.uiGroup.position.x;
-
 		y -= Math.round(unit / 2);
+		this.labels.value.text = " = " + total;
+		this.labels.value.y = y + Math.round(unit / 2) - this.uiGroup.position.y;
+		this.labels.value.x = x + dx - this.uiGroup.position.x;
+
+		this.labels.colFactor.text = "" + dCol;
+		this.labels.colFactor.y = this.labels.value.y - unit;
+		this.labels.colFactor.x = x + Math.round(dCol * unit / 2) - this.uiGroup.position.x;
+
+		this.labels.rowFactor.text = "x" + dRow;
+		this.labels.rowFactor.y = this.labels.value.y + unit;
+		this.labels.rowFactor.x = Math.floor(x + dx / 2 - this.uiGroup.position.x);
+
 		for (i=0; i<dRow; ++i) {
 			ctxt.strokeStyle = "#004400";
 			for (j=0; j<dCol; ++j) {
@@ -152,8 +156,6 @@ mm.scenes.practice = {
 		var centerImage = null;
 
 		this.roomGroup = mm.game.add.group();
-		this.roomGroup.position.x = mm.width / 2;
-		this.roomGroup.position.y = mm.height / 2;
 
 		this.roomGroup.inputEnableChildren = true;
 		this.roomGroup.onChildInputUp.add(this.onChildInputUp, this);
@@ -162,7 +164,7 @@ mm.scenes.practice = {
 		this.roomGroup.onChildInputOut.add(this.onChildInputOut, this);
 
 		this.centerBand = mm.game.make.bitmapData(mm.width, Math.floor(2 * mm.height / 5));
-		this.centerBand.canvas.getContext('2d').fillStyle = 'black';
+		this.centerBand.canvas.getContext('2d').fillStyle = this.UI_GROUP_COLOR;
 		this.centerBand.canvas.getContext('2d').fillRect(0, 0, this.centerBand.width, this.centerBand.height);
 		centerImage = mm.game.add.image(this.centerBand.width, this.centerBand.height, this.centerBand);
 		centerImage.anchor.x = 0.5;
@@ -171,7 +173,11 @@ mm.scenes.practice = {
 		centerImage.position.y = 0; // mm.height / 2;
 		this.roomGroup.add(centerImage);
 
+		this.roomGroup.position.x = mm.width / 2;
+		this.roomGroup.position.y = mm.height - this.centerBand.height;
+
 		this.room = new Room(this.roomGroup);
+		this.room.setScale(2.0, 2.0);
 	},
 
 	createAdventurerElements: function() {
@@ -188,20 +194,20 @@ mm.scenes.practice = {
 		this.title.anchor.y = 0.5;
 		this.uiGroup.add(this.title);
 
-		this.labels.origin = mm.game.make.bitmapText(0, 0, 'charybdis_72', '0', 36);
-		this.labels.origin.anchor.x = 1;
-		this.labels.origin.anchor.y = 0.5;
-		this.uiGroup.add(this.labels.origin);
-
-		this.labels.range = mm.game.make.bitmapText(0, 0, 'charybdis_72', '0', 36);
-		this.labels.range.anchor.x = 0;
-		this.labels.range.anchor.y = 0.5;
-		this.uiGroup.add(this.labels.range);
-
 		this.labels.value = mm.game.make.bitmapText(0, 0, 'charybdis_72', '0', 36);
-		this.labels.value.anchor.x = 0.5;
-		this.labels.value.anchor.y = 1;
+		this.labels.value.anchor.x = 0;
+		this.labels.value.anchor.y = 0.5;
 		this.uiGroup.add(this.labels.value);
+
+		this.labels.colFactor = mm.game.make.bitmapText(0, 0, 'charybdis_72', '0', 36);
+		this.labels.colFactor.anchor.x = 0.5;
+		this.labels.colFactor.anchor.y = 1;
+		this.uiGroup.add(this.labels.colFactor);
+
+		this.labels.rowFactor = mm.game.make.bitmapText(0, 0, 'charybdis_72', '0', 36);
+		this.labels.rowFactor.anchor.x = 0;
+		this.labels.rowFactor.anchor.y = 0;
+		this.uiGroup.add(this.labels.rowFactor);
 	},
 
 	enable: function(bEnable) {
@@ -346,6 +352,10 @@ Room.prototype.initObjectsMap = function(group) {
 	}
 };
 
+Room.prototype.tileSize = function() {
+	return mm.TILE_SIZE * this.group.scale.x
+};
+
 Room.prototype.initCreaturesMap = function(group) {
 	this.creatureMap = mm.game.add.tilemap();
 
@@ -360,6 +370,10 @@ Room.prototype.initCreaturesMap = function(group) {
 	this.creatureLayer.anchor.x = 0.5;
 	this.creatureLayer.anchor.y = 0.5;
 	this.group.add(this.creatureLayer);
+};
+
+Room.prototype.setScale = function(scaleX, scaleY) {
+	this.group.scale.set(scaleX, scaleY);
 };
 
 Room.prototype.areaClear = function(minRow, minCol, maxRow, maxCol) {
@@ -392,11 +406,11 @@ Room.prototype.areaClear = function(minRow, minCol, maxRow, maxCol) {
 };
 
 Room.prototype.cornerX = function() {
-	return this.group.position.x - Math.floor(this.layers.floor.anchor.x * this.width) * mm.TILE_SIZE;
+	return this.group.position.x - Math.floor(this.layers.floor.anchor.x * this.width) * this.tileSize();
 };
 
 Room.prototype.cornerY = function() {
-	return this.group.position.y - Math.floor(this.layers.floor.anchor.y * this.height) * mm.TILE_SIZE;
+	return this.group.position.y - Math.floor(this.layers.floor.anchor.y * this.height) * this.tileSize();
 };
 
 Room.prototype.getRowFromScreen = function(screenY) {
@@ -404,7 +418,7 @@ Room.prototype.getRowFromScreen = function(screenY) {
 
 	var yCorner = this.cornerY();
 
-	return this.layers.floor.getTileY(screenY - yCorner);
+	return Math.floor(this.layers.floor.getTileY(screenY - yCorner) / this.group.scale.y);
 };
 
 Room.prototype.getColFromScreen = function(screenX) {
@@ -412,7 +426,7 @@ Room.prototype.getColFromScreen = function(screenX) {
 
 	var xCorner = this.cornerX();
 
-	return this.layers.floor.getTileX(screenX - xCorner);
+	return Math.floor(this.layers.floor.getTileX(screenX - xCorner) / this.group.scale.x);
 };
 
 Room.prototype.clear = function() {
@@ -501,9 +515,12 @@ Room.prototype.generate = function() {
 				this.map.putTile(this.iType * nTilesPerRow + iTile, tileX, tileY, this.layers.walls);
 			}
 
-			if (iTile < 0 && Math.floor(Math.random() * 100) < this.OBJECT_SPAWN_PERCENT) {
-				iTile = this.OBJECT_TILES[Math.floor(Math.random() * this.OBJECT_TILES.length)];
-				this.map.putTile(iTile.row * nTilesPerRow + iTile.col, tileX, tileY, this.layers.objects);
+			if (tileX > 0 && tileX < this.width - 1 &&
+				tileY > 0 && tileY < this.height - 1) {
+				if (iTile < 0 && Math.floor(Math.random() * 100) < this.OBJECT_SPAWN_PERCENT) {
+					iTile = this.OBJECT_TILES[Math.floor(Math.random() * this.OBJECT_TILES.length)];
+					this.map.putTile(iTile.row * nTilesPerRow + iTile.col, tileX, tileY, this.layers.objects);
+				}
 			}
 		}
 	}
@@ -540,42 +557,42 @@ Room.prototype.OBJECT_SPAWN_PERCENT = 1;
 Room.prototype.FLOOR_TILES = [3, 4, 5, 6];
 
 Room.prototype.OBJECT_TILES = [
-	{name: "tombstone", 	row: 0, 	col: 27},
-	{name: "chest", 		row: 3, 	col: 30},
-	{name: "bookcase", 		row: 4, 	col: 29},
-	{name: "table", 		row: 4, 	col: 31},
-	{name: "chair", 		row: 4, 	col: 33},
-	{name: "throne", 		row: 4, 	col: 34},
-	{name: "weaponRack",	row: 4, 	col: 36},
-	{name: "cauldron",		row: 5, 	col: 29},
-	{name: "statue01",		row: 5, 	col: 30},
-	{name: "statue02",		row: 5, 	col: 31},
-	{name: "statue03",		row: 5, 	col: 32},
-	{name: "statue04",		row: 5, 	col: 33},
-	{name: "urn01",			row: 5, 	col: 38},
-	{name: "urn02",			row: 6, 	col: 35},
-	{name: "urn03",			row: 6, 	col: 38},
-	{name: "urn04",			row: 7, 	col: 35},
-	{name: "urn05",			row: 7, 	col: 38},
-	{name: "altar01",		row: 7, 	col: 27},
-	{name: "altar02",		row: 7, 	col: 29},
-	{name: "altar03",		row: 7, 	col: 30},
-	{name: "altar04",		row: 7, 	col: 31},
-	{name: "altar05",		row: 7, 	col: 32},
-	{name: "altar06",		row: 7, 	col: 33},
-	{name: "altar07",		row: 7, 	col: 34},
-	{name: "spikes",		row: 6, 	col: 27},
-	{name: "cage",			row: 8, 	col: 27},
-	{name: "pool",			row: 8, 	col: 31},
-	{name: "well",			row: 8, 	col: 32},
-	{name: "tome01",		row: 8, 	col: 35},
-	{name: "tome02",		row: 8, 	col: 36},
-	{name: "tome03",		row: 8, 	col: 37},
+	{name: "tombstone", 	row: 0, 	col: 28},
+	{name: "chest", 		row: 3, 	col: 31},
+	{name: "bookcase", 		row: 4, 	col: 30},
+	{name: "table", 		row: 4, 	col: 32},
+	{name: "chair", 		row: 4, 	col: 34},
+	{name: "throne", 		row: 4, 	col: 35},
+	{name: "weaponRack",	row: 4, 	col: 37},
+	{name: "cauldron",		row: 5, 	col: 30},
+	{name: "statue01",		row: 5, 	col: 31},
+	{name: "statue02",		row: 5, 	col: 32},
+	{name: "statue03",		row: 5, 	col: 33},
+	{name: "statue04",		row: 5, 	col: 34},
+	{name: "urn01",			row: 5, 	col: 39},
+	{name: "urn02",			row: 6, 	col: 36},
+	{name: "urn03",			row: 6, 	col: 39},
+	{name: "urn04",			row: 7, 	col: 36},
+	{name: "urn05",			row: 7, 	col: 39},
+	{name: "altar01",		row: 7, 	col: 28},
+	{name: "altar02",		row: 7, 	col: 30},
+	{name: "altar03",		row: 7, 	col: 31},
+	{name: "altar04",		row: 7, 	col: 32},
+	{name: "altar05",		row: 7, 	col: 33},
+	{name: "altar06",		row: 7, 	col: 34},
+	{name: "altar07",		row: 7, 	col: 35},
+	{name: "spikes",		row: 6, 	col: 28},
+	{name: "cage",			row: 8, 	col: 28},
+	{name: "pool",			row: 8, 	col: 32},
+	{name: "well",			row: 8, 	col: 33},
+	{name: "tome01",		row: 8, 	col: 36},
+	{name: "tome02",		row: 8, 	col: 37},
 	{name: "tome03",		row: 8, 	col: 38},
-	{name: "coffin01",		row: 3, 	col: 34},
-	{name: "coffin02",		row: 3, 	col: 36},
-	{name: "barrel",		row: 3, 	col: 37},
-	{name: "bucket",		row: 3, 	col: 39},
+	{name: "tome03",		row: 8, 	col: 39},
+	{name: "coffin01",		row: 3, 	col: 35},
+	{name: "coffin02",		row: 3, 	col: 37},
+	{name: "barrel",		row: 3, 	col: 38},
+	{name: "bucket",		row: 3, 	col: 40},
 ];
 
 // ADVENTURER CARD ////////////////////////////////////////////////////////////
