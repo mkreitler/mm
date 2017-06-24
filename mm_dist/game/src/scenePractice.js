@@ -8,14 +8,20 @@ mm.scenes.practice = {
 	NUMBER_LINE_HEIGHT: (1 / 7),
 	SCENE_BACK_COLOR: "#888888",
 	UI_GROUP_COLOR: "#CCCCCC",
+	DARK_GREEN: "#004400",
+	ROW_FACTOR_STROKE_COLOR: "#FFFFFF",
+	MAP_HEIGHT_FACTOR: 4 / 5,
+	ROOM_MARGIN: 20,
 
 	uiGroup: null,
 	title: null,
 	centerBand: null,
 	labels: {value: null, rowFactor: null, colFactor: null},
 
-	roomGroup: null,
-	room: null,
+	mapGroup: null,
+	roomsGroup: null,
+	rooms: [null, null, null, null, null],
+	focusRoom: null,
 
 	roomTileMap: null,
 
@@ -38,17 +44,32 @@ mm.scenes.practice = {
 	},
 
 	start: function() {
+		var i = 0;
+
 		mm.game.stage.backgroundColor = this.SCENE_BACK_COLOR;
-		mm.game.input.onTap.add(this.onTap, this);
 		this.enable(true);
 		this.hideLabels();
 		mm.broadcast('addKeyAction', {enter: this.onRegenerate.bind(this)});
+		this.enableRoomInput(true);
+
+		this.focusRoom = null;
+
+		for (i=0; i<this.rooms.length; ++i) {
+			this.rooms[i].setScale(this.rooms[i].SCALE_SMALL, this.rooms[i].SCALE_SMALL);
+			this.rooms[i].setX(this.getRoomX(i, -1));
+		}
+
+		this.roomsGroup.position.x = 0;
+
+		mm.listenFor("RoomSelected", this);
+		mm.listenFor("RoomGainedFocus", this);
 	},
 
 	end: function() {
 		this.enable(false);
-		mm.game.input.onTap.remove(this.onTap, this);
 		mm.broadcast('removeKeyAction', {enter: this.onRegenerate.bind(this)});
+		mm.unlistenFor("RoomSelected", this);
+		mm.unlistenFor("RoomGainedFocus", this);
 	},
 
 	update: function() {
@@ -86,8 +107,11 @@ mm.scenes.practice = {
 		var cornerX = this.room.cornerX();
 		var cornerY = this.room.cornerY();
 		var tileSize = this.room.tileSize();
+		var iRow = 0;
+		var iCol = 0;
+		var bRoomAreaIsClear = this.room.areaClear(minRow, minCol, maxRow, maxCol);
 
-		ctxt.fillStyle = this.room.areaClear(minRow, minCol, maxRow, maxCol) ? "green" : "red";
+		ctxt.fillStyle = bRoomAreaIsClear ? "green" : "red";
 		ctxt.globalAlpha = this.DRAG_ALPHA;
 
 		ctxt.fillRect(cornerX + minCol * tileSize,
@@ -96,6 +120,24 @@ mm.scenes.practice = {
 					  (maxRow - minRow + 1) * tileSize);
 
 		ctxt.globalAlpha = 1.0;
+
+		if (bRoomAreaIsClear) {
+			for (iRow=0; iRow<maxRow - minRow + 1; ++iRow) {
+				ctxt.strokeStyle = "#000000"; // this.DARK_GREEN;
+				for (iCol=0; iCol<maxCol - minCol + 1; ++iCol) {
+					ctxt.strokeRect(cornerX + (minCol + iCol) * tileSize,
+									cornerY + (minRow + iRow) * tileSize,
+									tileSize,
+									tileSize);
+				}
+
+				ctxt.strokeStyle = this.ROW_FACTOR_STROKE_COLOR;
+				ctxt.strokeRect(cornerX + minCol * tileSize,
+								cornerY + (minRow + iRow) * tileSize,
+								(maxCol - minCol + 1) * tileSize,
+								tileSize);
+			}
+		}
 	},
 
 	drawNumberLine: function(ctxt) {
@@ -135,12 +177,12 @@ mm.scenes.practice = {
 		this.labels.rowFactor.x = Math.floor(x + dx / 2 - this.uiGroup.position.x);
 
 		for (i=0; i<dRow; ++i) {
-			ctxt.strokeStyle = "#004400";
+			ctxt.strokeStyle = this.DARK_GREEN;
 			for (j=0; j<dCol; ++j) {
 				ctxt.strokeRect(x + j * unit, y, unit, unit);
 			}
 
-			ctxt.strokeStyle = "white";
+			ctxt.strokeStyle = this.ROW_FACTOR_STROKE_COLOR;
 			ctxt.strokeRect(x, y, unit * dCol, unit);
 			x += unit * dCol;
 		}
@@ -154,30 +196,33 @@ mm.scenes.practice = {
 
 	createRoomElements: function() {
 		var centerImage = null;
+		var centerBandY = Math.floor(mm.height * (1 - this.MAP_HEIGHT_FACTOR));
+		var i = 0;
 
-		this.roomGroup = mm.game.add.group();
+		this.mapGroup = mm.game.add.group();
+		this.mapGroup.position.x = Math.round(mm.width / 2);
+		this.mapGroup.position.y = 0;
 
-		this.roomGroup.inputEnableChildren = true;
-		this.roomGroup.onChildInputUp.add(this.onChildInputUp, this);
-		this.roomGroup.onChildInputDown.add(this.onChildInputDown, this);
-		this.roomGroup.onChildInputOver.add(this.onChildInputOver, this);
-		this.roomGroup.onChildInputOut.add(this.onChildInputOut, this);
+		this.roomsGroup = mm.game.add.group();
+		this.roomsGroup.position.x = 0;
+		this.roomsGroup.position.y = centerBandY;
 
-		this.centerBand = mm.game.make.bitmapData(mm.width, Math.floor(2 * mm.height / 5));
+		this.centerBand = mm.game.make.bitmapData(mm.width, mm.height - centerBandY);
 		this.centerBand.canvas.getContext('2d').fillStyle = this.UI_GROUP_COLOR;
 		this.centerBand.canvas.getContext('2d').fillRect(0, 0, this.centerBand.width, this.centerBand.height);
+
 		centerImage = mm.game.add.image(this.centerBand.width, this.centerBand.height, this.centerBand);
 		centerImage.anchor.x = 0.5;
-		centerImage.anchor.y = 0.5;
-		centerImage.position.x = 0; //mm.width / 2;
-		centerImage.position.y = 0; // mm.height / 2;
-		this.roomGroup.add(centerImage);
+		centerImage.anchor.y = 0;
+		centerImage.position.x = 0;
+		centerImage.position.y = centerBandY;
 
-		this.roomGroup.position.x = mm.width / 2;
-		this.roomGroup.position.y = mm.height - this.centerBand.height;
+		this.mapGroup.add(centerImage);
+		this.mapGroup.add(this.roomsGroup);
 
-		this.room = new Room(this.roomGroup);
-		this.room.setScale(2.0, 2.0);
+		for (i=0; i<this.rooms.length; ++i) {
+			this.rooms[i] = new Room(this.roomsGroup, this.getRoomX(i, -1), Math.round(mm.game.height * this.MAP_HEIGHT_FACTOR / 2));
+		}
 	},
 
 	createAdventurerElements: function() {
@@ -216,8 +261,8 @@ mm.scenes.practice = {
 		this.uiGroup.visible = bEnable;
 		this.uiGroup.exists = bEnable;
 
-		this.roomGroup.visible = bEnable;
-		this.roomGroup.exists = bEnable;
+		this.mapGroup.visible = bEnable;
+		this.mapGroup.exists = bEnable;
 
 		this.adventurerGroup.visible = bEnable;
 		this.adventurerGroup.exists = bEnable;
@@ -241,6 +286,56 @@ mm.scenes.practice = {
 		}
 	},
 
+	enableRoomInput: function(bEnable) {
+		Room.prototype.INPUT_ENABLED = bEnable;
+	},
+
+	getRoomX: function(iRoom, iSelectedRoom) {
+		var width = mm.width - 2 * this.ROOM_MARGIN;
+		var roomDxSmall = Math.round(Room.prototype.MAX_SIZE * mm.TILE_SIZE * Room.prototype.SCALE_SMALL);
+		var roomDxLarge = Math.round(Room.prototype.MAX_SIZE * mm.TILE_SIZE * Room.prototype.SCALE_FULL);
+		var spacing = 0;
+		var roomX = 0;
+
+		if (iSelectedRoom >= 0) {
+			spacing = (width - (this.rooms.length - 1) * roomDxSmall - roomDxLarge) / (this.rooms.length - 1);
+			roomX = this.ROOM_MARGIN;
+
+			if (iRoom <= iSelectedRoom) {
+				roomX += iRoom * (spacing + roomDxSmall);
+
+				if (iRoom === iSelectedRoom) {
+					roomX += roomDxLarge / 2;
+				}
+				else {
+					roomX += roomDxSmall / 2;
+				}
+			}
+			else {
+				roomX += (iRoom - 1) * roomDxSmall + iRoom * spacing + roomDxLarge + roomDxSmall / 2;
+			}
+		}
+		else {
+			// No room selected, so space everything evenly.
+			spacing = (width - this.rooms.length * roomDxSmall) / (this.rooms.length - 1);
+			roomX = this.ROOM_MARGIN + iRoom * (spacing + roomDxSmall) + roomDxSmall / 2;
+		}
+
+		return Math.round(-mm.width / 2 + roomX);
+	},
+
+	getSelectedRoomIndex: function(newSelectedRoom) {
+		var i = 0;
+
+		for (i=0; i<this.rooms.length; ++i) {
+			if (this.rooms[i] === newSelectedRoom) {
+				break;
+			}
+		}
+
+		return i >= this.rooms.length ? -1 : i;
+	},
+
 /////////////////////////////////////////////////////////////////////////////////////////
 //   .oooooo.             oooo  oooo   .o8                           oooo                 
 //  d8P'  `Y8b            `888  `888  "888                           `888                 
@@ -250,42 +345,77 @@ mm.scenes.practice = {
 // `88b    ooo  d8(  888   888   888   888   888 d8(  888  888   .o8  888 `88b.  o.  )88b 
 //  `Y8bood8P'  `Y888""8o o888o o888o  `Y8bod8P' `Y888""8o `Y8bod8P' o888o o888o 8""888P' 
 /////////////////////////////////////////////////////////////////////////////////////////
+	RoomSelected: function(newRoom) {
+		var i = 0;
+		var iSelected = -1;
 
-	// Input Handlers /////////////////////////////////////////////////////////
-	onTap: function(image) {
-		this.onRegenerate();
-	},
+		if (newRoom != this.focusRoom) {
+			iSelected = this.getSelectedRoomIndex(newRoom);
 
-	onChildInputUp: function(sprite, pointer) {
-		this.bUserDragging = false;
-		this.title.text = "Practice Mode";
-		this.hideLabels();
-	},
+			for (i=0; i<this.rooms.length; ++i) {
+				this.rooms[i].tweenToX(this.getRoomX(i, iSelected));
+			}
 
-	onChildInputDown: function(sprite, pointer) {
-		this.bUserDragging = true;
+			if (this.focusRoom) {
+				this.focusRoom.scaleDown();
+			}
 
-		if (this.room) {
-			this.dragStartRow = this.room.getRowFromScreen(pointer.y);
-			this.dragStartCol = this.room.getColFromScreen(pointer.x);
+			this.focusRoom = null;
 
-			if (this.dragStartRow < 0 ||
-				this.dragStartRow >= this.room.height ||
-				this.dragStartCol < 0 ||
-				this.dragStartCol >= this.room.width) {
-				this.bUserDragging = false;
+			if (newRoom) {
+				newRoom.scaleUp();
 			}
 		}
+	},
 
-		if (this.bUserDragging) {
-			this.showLabels();
+	RoomGainedFocus: function(focusRoom) {
+		this.focusRoom = focusRoom;
+	},
+
+	// NOTE: Called in the context of 'Room'!
+	onRoomInputUp: function(child, pointer) {
+		mm.broadcast("RoomSelected", this);
+
+		if (this.INPUT_ENABLED && this.bUserDragging) {
+			this.bUserDragging = false;
+			this.title.text = "Practice Mode";
+			this.hideLabels();
 		}
 	},
 
-	onChildInputOver: function(sprite, pointer) {
+	// NOTE: Called in the context of 'Room'!
+	onRoomInputDown: function(child, pointer) {
+		if (this.INPUT_ENABLED && this.bHasFocus) {
+			this.bUserDragging = true;
+
+			if (child) {
+				this.dragStartRow = child.getRowFromScreen(pointer.y);
+				this.dragStartCol = child.getColFromScreen(pointer.x);
+
+				if (this.dragStartRow < 0 ||
+					this.dragStartRow >= child.height ||
+					this.dragStartCol < 0 ||
+					this.dragStartCol >= child.width) {
+					this.bUserDragging = false;
+				}
+			}
+
+			if (this.bUserDragging) {
+				this.showLabels();
+			}
+		}
 	},
 
-	onChildInputOut: function(sprite, pointer) {
+	// NOTE: Called in the context of 'Room'!
+	onRoomInputOver: function(child, pointer) {
+		if (this.INPUT_ENABLED) {
+		}
+	},
+
+	// NOTE: Called in the context of 'Room'!
+	onRoomInputOut: function(child, pointer) {
+		if (this.INPUT_ENABLED) {
+		}
 	},
 };
 
@@ -300,7 +430,7 @@ mm.scenes.practice = {
 /////////////////////////////////////////////////////////////////////////////////////////////
 // TODO: move these into their own classes.
 // ROOM CARD //////////////////////////////////////////////////////////////////
-function Room(group) {
+function Room(group, offsetX, offsetY) {
 	// iType is the index into the row of terrain tiles
 	// displayed by this card.
 	this.iType	= 0;
@@ -308,20 +438,37 @@ function Room(group) {
 	this.width  = 0;
 	this.height = 0;
 
-	this.initObjectsMap(group);
-	this.initCreaturesMap(group);
+	this.parentGroup = group;
+	this.group = mm.game.add.group();
+	this.parentGroup.add(this.group);
+
+	this.group.position.x = offsetX;
+	this.group.position.y = offsetY;
+
+	this.group.inputEnableChildren = true;
+	this.group.onChildInputUp.add(mm.scenes.practice.onRoomInputUp, this);
+	this.group.onChildInputDown.add(mm.scenes.practice.onRoomInputDown, this);
+	this.group.onChildInputOver.add(mm.scenes.practice.onRoomInputOver, this);
+	this.group.onChildInputOut.add(mm.scenes.practice.onRoomInputOut, this);
+
+	this.scaleUpTween = null;
+	this.scaleDownTween = null;
+	this.bHasFocus = false;
+
+	this.initObjectsMap();
+	this.initCreaturesMap();
 
 	this.generate();
 
-	this.enable(false);
+
+//	this.enable(false);
 };
 
-Room.prototype.initObjectsMap = function(group) {
+Room.prototype.initObjectsMap = function() {
 	var key = null;
 	var iRow = 0;
 	var iCol = 0;
 
-	this.group 	= group;
 	this.map 	= mm.game.add.tilemap();
 	this.layers = {floor: null,
 				   shadows: null,
@@ -346,17 +493,63 @@ Room.prototype.initObjectsMap = function(group) {
 											   			 mm.TILE_SIZE);
 		}
 
+		this.layers[key].data = this;
+
 		this.layers[key].anchor.x = 0.5;
 		this.layers[key].anchor.y = 0.5;
+		this.layers[key].position.x = Math.round(this.group.width / 2);
+		this.layers[key].position.y = Math.round(this.group.height / 2);
 		this.group.add(this.layers[key]);
+
+	    this.scaleDownTween = mm.game.add.tween(this.group.scale).to({x: this.SCALE_SMALL, y: this.SCALE_SMALL}, this.TWEEN_TIME, Phaser.Easing.Cubic.InOut, false);
+	    this.scaleDownTween.onComplete.add(this.onScaleDownComplete, this);
+
+	    this.scaleUpTween = mm.game.add.tween(this.group.scale).to({x: this.SCALE_FULL, y: this.SCALE_FULL}, this.TWEEN_TIME, Phaser.Easing.Cubic.InOut, false);
+	    this.scaleUpTween.onComplete.add(this.onScaleUpComplete, this);
+
+	    this.moveTween = mm.game.add.tween(this.group.position);
+	    this.moveTween.to({x: 0, y: this.group.position.y}, this.TWEEN_TIME, Phaser.Easing.Cubic.InOut, true);
 	}
+};
+
+Room.prototype.scaleDown = function() {
+    this.scaleDownTween.start();
+    this.INPUT_ENABLED = false;
+    this.onLostFocus();
+};
+
+Room.prototype.scaleUp = function() {
+	this.parentGroup.bringToTop(this.group);
+    this.scaleUpTween.start();
+};
+
+Room.prototype.setX = function(newX) {
+	this.group.position.x = newX;
+};
+
+Room.prototype.tweenToX = function(x) {
+	this.moveTween.stop();
+	this.moveTween.updateTweenData('vEnd', {x: x, y: this.group.position.y});
+	this.moveTween.start();
+};
+
+Room.prototype.onScaleDownComplete = function() {
+};
+
+Room.prototype.onScaleUpComplete = function() {
+	this.INPUT_ENABLED = true;
+	this.onGainedFocus();
 };
 
 Room.prototype.tileSize = function() {
 	return mm.TILE_SIZE * this.group.scale.x
 };
 
-Room.prototype.initCreaturesMap = function(group) {
+Room.prototype.contains = function(x, y) {
+	return this.map.getTileWorldXY(x, y, mm.TILE_SIZE, mm.TILE_SIZE, 0) !== null;
+};
+
+Room.prototype.initCreaturesMap = function() {
 	this.creatureMap = mm.game.add.tilemap();
 
 	this.creatureMap.addTilesetImage('creatures', 'creatures', mm.TILE_SIZE, mm.TILE_SIZE);
@@ -366,6 +559,7 @@ Room.prototype.initCreaturesMap = function(group) {
 												 this.MAX_SIZE,
 												 mm.TILE_SIZE,
 												 mm.TILE_SIZE);
+	this.creatureLayer.data = this;
 
 	this.creatureLayer.anchor.x = 0.5;
 	this.creatureLayer.anchor.y = 0.5;
@@ -450,8 +644,8 @@ Room.prototype.generate = function() {
 	var iTile = 0;
 
 	this.iType 	= Math.floor(Math.random() * this.NUM_TYPES);
-	this.width 	= Math.floor(Math.random() * (this.MAX_SIZE - this.MIN_SIZE)) + this.MIN_SIZE;
-	this.height = Math.floor(Math.random() * (this.MAX_SIZE - this.MIN_SIZE)) + this.MIN_SIZE;
+	this.width 	= this.MAX_SIZE; // Math.floor(Math.random() * (this.MAX_SIZE - this.MIN_SIZE)) + this.MIN_SIZE;
+	this.height = this.MAX_SIZE; // Math.floor(Math.random() * (this.MAX_SIZE - this.MIN_SIZE)) + this.MIN_SIZE;
 
 	nTilesPerRow = mm.game.cache.getImage('world').width / mm.TILE_SIZE;
 	mm.assert(nTilesPerRow === Math.round(nTilesPerRow), "(Room.generate) invalid tileImage");
@@ -541,10 +735,28 @@ Room.prototype.moveBy = function(dx, dy) {
 	this.group.position.y += dy;
 };
 
+// Input Handlers /////////////////////////////////////////////////////////
+Room.prototype.onGainedFocus = function() {
+	mm.broadcast("RoomGainedFocus", this);
+	this.bHasFocus = true;
+};
+
+Room.prototype.onLostFocus = function() {
+	this.bHasFocus = false;
+};
+
+Room.prototype.INPUT_ENABLED = true;
+
+// Constants //////////////////////////////////////////////////////////////////
 Room.prototype.MAX_SIZE = 12;	// Why do multiplication tables go up to 12?
 Room.prototype.MIN_SIZE = 3;
 
-Room.prototype.NUM_TYPES = 23;
+Room.prototype.SCALE_SMALL = 0.33;
+Room.prototype.SCALE_FULL = 2.0;
+
+Room.prototype.TWEEN_TIME = 500;
+
+Room.prototype.NUM_TYPES = 20;
 
 Room.prototype.WALL_TILES = [
 	[16, 11, 17],
