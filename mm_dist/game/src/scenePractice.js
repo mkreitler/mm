@@ -12,6 +12,7 @@ mm.scenes.practice = {
 	ROW_FACTOR_STROKE_COLOR: "#FFFFFF",
 	MAP_HEIGHT_FACTOR: 4 / 5,
 	ROOM_MARGIN: 20,
+	MAX_SPACING: 30,
 
 	uiGroup: null,
 	title: null,
@@ -28,11 +29,7 @@ mm.scenes.practice = {
 	adventurerGroup: null,
 	adventureTileMap: null,
 
-	bUserDragging: false,
-	dragStartRow: -1,
-	dragStartCol: -1,
-	dragRow: -1,
-	dragCol: -1,
+	dragInfo: null,
 
 	// Scene Interface ////////////////////////////////////////////////////////
 	create: function() {
@@ -63,6 +60,8 @@ mm.scenes.practice = {
 
 		mm.listenFor("RoomSelected", this);
 		mm.listenFor("RoomGainedFocus", this);
+		mm.listenFor("StartUserDrag", this);
+		mm.listenFor("EndUserDrag", this);
 	},
 
 	end: function() {
@@ -70,18 +69,20 @@ mm.scenes.practice = {
 		mm.broadcast('removeKeyAction', {enter: this.onRegenerate.bind(this)});
 		mm.unlistenFor("RoomSelected", this);
 		mm.unlistenFor("RoomGainedFocus", this);
+		mm.unlistenFor("StartUserDrag", this);
+		mm.unlistenFor("EndUserDrag", this);
 	},
 
 	update: function() {
-		if (this.bUserDragging) {
-			this.dragRow = this.room.getRowFromScreen(mm.game.input.activePointer.y);
-			this.dragCol = this.room.getColFromScreen(mm.game.input.activePointer.x);
+		if (this.dragInfo && this.focusRoom) {
+			this.dragInfo.dragRow = this.focusRoom.getRowFromScreen(mm.game.input.activePointer.y);
+			this.dragInfo.dragCol = this.focusRoom.getColFromScreen(mm.game.input.activePointer.x);
 
-			this.dragRow = Math.min(this.dragRow, this.room.height - 1);
-			this.dragRow = Math.max(this.dragRow, 0);
+			this.dragInfo.dragRow = Math.min(this.dragInfo.dragRow, this.focusRoom.height - 1);
+			this.dragInfo.dragRow = Math.max(this.dragInfo.dragRow, 0);
 
-			this.dragCol = Math.min(this.dragCol, this.room.width - 1);
-			this.dragCol = Math.max(this.dragCol, 0);
+			this.dragInfo.dragCol = Math.min(this.dragInfo.dragCol, this.focusRoom.width - 1);
+			this.dragInfo.dragCol = Math.max(this.dragInfo.dragCol, 0);
 
 			// this.title.text = "(" +
 			// 			 Math.min(this.dragStartCol, this.dragCol) + ", " +
@@ -92,24 +93,23 @@ mm.scenes.practice = {
 	},
 
 	render: function(ctxt) {
-		if (this.bUserDragging) {
-			this.drawDragArea(ctxt);
-			this.drawNumberLine(ctxt);
+		if (this.dragInfo) {
+			this.drawVisualizer(ctxt);
 		}
 	},
 
 	// Implementation /////////////////////////////////////////////////////////
-	drawDragArea: function(ctxt) {
-		var minRow = Math.min(this.dragStartRow, this.dragRow);
-		var minCol = Math.min(this.dragStartCol, this.dragCol);
-		var maxRow = Math.max(this.dragStartRow, this.dragRow);
-		var maxCol = Math.max(this.dragStartCol, this.dragCol);
-		var cornerX = this.room.cornerX();
-		var cornerY = this.room.cornerY();
-		var tileSize = this.room.tileSize();
+	drawVisualizer: function(ctxt) {
+		var minRow = Math.min(this.dragInfo.dragStartRow, this.dragInfo.dragRow);
+		var minCol = Math.min(this.dragInfo.dragStartCol, this.dragInfo.dragCol);
+		var maxRow = Math.max(this.dragInfo.dragStartRow, this.dragInfo.dragRow);
+		var maxCol = Math.max(this.dragInfo.dragStartCol, this.dragInfo.dragCol);
+		var cornerX = this.focusRoom.cornerX();
+		var cornerY = this.focusRoom.cornerY();
+		var tileSize = this.focusRoom.tileSize();
 		var iRow = 0;
 		var iCol = 0;
-		var bRoomAreaIsClear = this.room.areaClear(minRow, minCol, maxRow, maxCol);
+		var bRoomAreaIsClear = this.focusRoom.areaClear(minRow, minCol, maxRow, maxCol);
 
 		ctxt.fillStyle = bRoomAreaIsClear ? "green" : "red";
 		ctxt.globalAlpha = this.DRAG_ALPHA;
@@ -122,6 +122,8 @@ mm.scenes.practice = {
 		ctxt.globalAlpha = 1.0;
 
 		if (bRoomAreaIsClear) {
+			this.showLabels();
+
 			for (iRow=0; iRow<maxRow - minRow + 1; ++iRow) {
 				ctxt.strokeStyle = "#000000"; // this.DARK_GREEN;
 				for (iCol=0; iCol<maxCol - minCol + 1; ++iCol) {
@@ -137,6 +139,11 @@ mm.scenes.practice = {
 								(maxCol - minCol + 1) * tileSize,
 								tileSize);
 			}
+
+			this.drawNumberLine(ctxt);
+		}
+		else {
+			this.hideLabels();
 		}
 	},
 
@@ -146,8 +153,8 @@ mm.scenes.practice = {
 		var x = 0;
 		var y = 0;
 
-		var dCol = Math.abs(this.dragStartCol - this.dragCol) + 1;
-		var dRow = Math.abs(this.dragStartRow - this.dragRow) + 1;
+		var dCol = Math.abs(this.dragInfo.dragStartCol - this.dragInfo.dragCol) + 1;
+		var dRow = Math.abs(this.dragInfo.dragStartRow - this.dragInfo.dragRow) + 1;
 		var total = dCol * dRow;
 
 		var maxWidth = Math.round(mm.game.width * 8 / 10); // <-- TODO: make this a constant
@@ -190,8 +197,8 @@ mm.scenes.practice = {
 
 	onRegenerate: function() {
 		mm.assert(this.room, "(regenerate) invalid room");
-		this.room.clear();
-		this.room.generate();
+		this.focusRoom.clear();
+		this.focusRoom.generate();
 	},
 
 	createRoomElements: function() {
@@ -291,15 +298,25 @@ mm.scenes.practice = {
 	},
 
 	getRoomX: function(iRoom, iSelectedRoom) {
-		var width = mm.width - 2 * this.ROOM_MARGIN;
 		var roomDxSmall = Math.round(Room.prototype.MAX_SIZE * mm.TILE_SIZE * Room.prototype.SCALE_SMALL);
 		var roomDxLarge = Math.round(Room.prototype.MAX_SIZE * mm.TILE_SIZE * Room.prototype.SCALE_FULL);
 		var spacing = 0;
 		var roomX = 0;
+		var margin = this.ROOM_MARGIN;
+		var width = mm.width - 2 * margin;
 
 		if (iSelectedRoom >= 0) {
 			spacing = (width - (this.rooms.length - 1) * roomDxSmall - roomDxLarge) / (this.rooms.length - 1);
-			roomX = this.ROOM_MARGIN;
+
+			if (spacing > this.MAX_SPACING) {
+				spacing = this.MAX_SPACING;
+				margin = mm.width - (this.rooms.length - 1) * (roomDxSmall + spacing) - roomDxLarge;
+				margin = Math.round(margin / 2);
+				width = mm.width - 2 * margin;
+				spacing = (width - (this.rooms.length - 1) * roomDxSmall - roomDxLarge) / (this.rooms.length - 1);
+			}
+
+			roomX = margin;
 
 			if (iRoom <= iSelectedRoom) {
 				roomX += iRoom * (spacing + roomDxSmall);
@@ -318,7 +335,16 @@ mm.scenes.practice = {
 		else {
 			// No room selected, so space everything evenly.
 			spacing = (width - this.rooms.length * roomDxSmall) / (this.rooms.length - 1);
-			roomX = this.ROOM_MARGIN + iRoom * (spacing + roomDxSmall) + roomDxSmall / 2;
+
+			if (spacing > this.MAX_SPACING) {
+				spacing = this.MAX_SPACING;
+				margin = mm.width - (this.rooms.length - 1) * (roomDxSmall + spacing) - roomDxSmall;
+				margin = Math.round(margin / 2);
+				width = mm.width - 2 * margin;
+				spacing = (width - (this.rooms.length - 1) * roomDxSmall - roomDxSmall) / (this.rooms.length - 1);
+			}
+
+			roomX = margin + iRoom * (spacing + roomDxSmall) + roomDxSmall / 2;
 		}
 
 		return Math.round(-mm.width / 2 + roomX);
@@ -345,6 +371,15 @@ mm.scenes.practice = {
 // `88b    ooo  d8(  888   888   888   888   888 d8(  888  888   .o8  888 `88b.  o.  )88b 
 //  `Y8bood8P'  `Y888""8o o888o o888o  `Y8bod8P' `Y888""8o `Y8bod8P' o888o o888o 8""888P' 
 /////////////////////////////////////////////////////////////////////////////////////////
+	StartUserDrag: function(dragInfo) {
+		this.dragInfo = dragInfo;
+	},
+
+	EndUserDrag: function(dragInfo) {
+		this.hideLabels();
+		this.dragInfo = null;
+	},
+
 	RoomSelected: function(newRoom) {
 		var i = 0;
 		var iSelected = -1;
@@ -374,47 +409,48 @@ mm.scenes.practice = {
 
 	// NOTE: Called in the context of 'Room'!
 	onRoomInputUp: function(child, pointer) {
-		mm.broadcast("RoomSelected", this);
-
-		if (this.INPUT_ENABLED && this.bUserDragging) {
-			this.bUserDragging = false;
-			this.title.text = "Practice Mode";
-			this.hideLabels();
+		if (Room.prototype.INPUT_ENABLED) {
+			if (this.bUserDragging) {
+				this.bUserDragging = false;
+				mm.broadcast("EndUserDrag", null);
+			}
+			else {
+				mm.broadcast("RoomSelected", this);
+			}
 		}
 	},
 
 	// NOTE: Called in the context of 'Room'!
 	onRoomInputDown: function(child, pointer) {
-		if (this.INPUT_ENABLED && this.bHasFocus) {
-			this.bUserDragging = true;
+		if (Room.prototype.INPUT_ENABLED && this.bHasFocus) {
+			this.USER_DRAG_INFO.dragStartRow = this.getRowFromScreen(pointer.y);
+			this.USER_DRAG_INFO.dragStartCol = this.getColFromScreen(pointer.x);
 
-			if (child) {
-				this.dragStartRow = child.getRowFromScreen(pointer.y);
-				this.dragStartCol = child.getColFromScreen(pointer.x);
+			if (this.USER_DRAG_INFO.dragStartRow < 0 ||
+				this.USER_DRAG_INFO.dragStartRow >= this.height ||
+				this.USER_DRAG_INFO.dragStartCol < 0 ||
+				this.USER_DRAG_INFO.dragStartCol >= this.width) {
 
-				if (this.dragStartRow < 0 ||
-					this.dragStartRow >= child.height ||
-					this.dragStartCol < 0 ||
-					this.dragStartCol >= child.width) {
-					this.bUserDragging = false;
-				}
+				// Abort the operation.
+				mm.broadcast("EndUserDrag", null);
+				this.bUserDragging = false;
 			}
-
-			if (this.bUserDragging) {
-				this.showLabels();
+			else {
+				this.bUserDragging = true;
+				mm.broadcast("StartUserDrag", this.USER_DRAG_INFO);
 			}
 		}
 	},
 
 	// NOTE: Called in the context of 'Room'!
 	onRoomInputOver: function(child, pointer) {
-		if (this.INPUT_ENABLED) {
+		if (Room.prototype.INPUT_ENABLED) {
 		}
 	},
 
 	// NOTE: Called in the context of 'Room'!
 	onRoomInputOut: function(child, pointer) {
-		if (this.INPUT_ENABLED) {
+		if (Room.prototype.INPUT_ENABLED) {
 		}
 	},
 };
@@ -454,6 +490,7 @@ function Room(group, offsetX, offsetY) {
 	this.scaleUpTween = null;
 	this.scaleDownTween = null;
 	this.bHasFocus = false;
+	this.bUserDragging = false;
 
 	this.initObjectsMap();
 	this.initCreaturesMap();
@@ -514,7 +551,7 @@ Room.prototype.initObjectsMap = function() {
 
 Room.prototype.scaleDown = function() {
     this.scaleDownTween.start();
-    this.INPUT_ENABLED = false;
+    Room.prototype.INPUT_ENABLED = false;
     this.onLostFocus();
 };
 
@@ -537,7 +574,7 @@ Room.prototype.onScaleDownComplete = function() {
 };
 
 Room.prototype.onScaleUpComplete = function() {
-	this.INPUT_ENABLED = true;
+	Room.prototype.INPUT_ENABLED = true;
 	this.onGainedFocus();
 };
 
@@ -600,11 +637,11 @@ Room.prototype.areaClear = function(minRow, minCol, maxRow, maxCol) {
 };
 
 Room.prototype.cornerX = function() {
-	return this.group.position.x - Math.floor(this.layers.floor.anchor.x * this.width) * this.tileSize();
+	return this.parentGroup.position.x + this.group.position.x - Math.floor(this.layers.floor.anchor.x * this.width) * this.tileSize() + Math.floor(mm.width / 2);
 };
 
 Room.prototype.cornerY = function() {
-	return this.group.position.y - Math.floor(this.layers.floor.anchor.y * this.height) * this.tileSize();
+	return this.parentGroup.position.y + this.group.position.y - Math.floor(this.layers.floor.anchor.y * this.height) * this.tileSize();
 };
 
 Room.prototype.getRowFromScreen = function(screenY) {
@@ -612,7 +649,7 @@ Room.prototype.getRowFromScreen = function(screenY) {
 
 	var yCorner = this.cornerY();
 
-	return Math.floor(this.layers.floor.getTileY(screenY - yCorner) / this.group.scale.y);
+		return Math.floor(this.layers.floor.getTileY(screenY - yCorner) / this.group.scale.y);
 };
 
 Room.prototype.getColFromScreen = function(screenX) {
@@ -644,8 +681,8 @@ Room.prototype.generate = function() {
 	var iTile = 0;
 
 	this.iType 	= Math.floor(Math.random() * this.NUM_TYPES);
-	this.width 	= this.MAX_SIZE; // Math.floor(Math.random() * (this.MAX_SIZE - this.MIN_SIZE)) + this.MIN_SIZE;
-	this.height = this.MAX_SIZE; // Math.floor(Math.random() * (this.MAX_SIZE - this.MIN_SIZE)) + this.MIN_SIZE;
+	this.width 	= Math.floor(Math.random() * (this.MAX_SIZE - this.MIN_SIZE)) + this.MIN_SIZE;
+	this.height = Math.floor(Math.random() * (this.MAX_SIZE - this.MIN_SIZE)) + this.MIN_SIZE;
 
 	nTilesPerRow = mm.game.cache.getImage('world').width / mm.TILE_SIZE;
 	mm.assert(nTilesPerRow === Math.round(nTilesPerRow), "(Room.generate) invalid tileImage");
@@ -746,6 +783,13 @@ Room.prototype.onLostFocus = function() {
 };
 
 Room.prototype.INPUT_ENABLED = true;
+
+Room.prototype.USER_DRAG_INFO = {
+	dragStartCol: -1,
+	dragStartRow: -1,
+	dragCol: -1,
+	dragRow: -1
+};
 
 // Constants //////////////////////////////////////////////////////////////////
 Room.prototype.MAX_SIZE = 12;	// Why do multiplication tables go up to 12?

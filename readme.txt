@@ -19,15 +19,3 @@ NOTES
 * Special abilities like Disease for rats, etc?
 * Adventurer stats: Hit Points (HP), Armor, Special (special abilities)
 * Monster stats: Size (if monster.size > adventurer.armor, monster can hurt adventurer), Special
-
-
-
-Tomorrow:
-Register car
-Laundy
-Vacuum
-Mop floor
-Organize office
-Plan trip
-Talk to Doug?
-Wash dogs?
