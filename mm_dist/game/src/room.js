@@ -90,7 +90,8 @@ Room.prototype.initObjectsMap = function() {
 	    this.scaleUpTween.onComplete.add(this.onScaleUpComplete, this);
 
 	    this.moveTween = mm.game.add.tween(this.group.position);
-	    this.moveTween.to({x: 0, y: this.group.position.y}, this.TWEEN_TIME, Phaser.Easing.Cubic.InOut, true);
+	    this.defaultY = this.group.position.y;
+	    this.moveTween.to({x: 0, y: this.defaultY}, this.TWEEN_TIME, Phaser.Easing.Cubic.InOut, true);
 	}
 };
 
@@ -109,9 +110,13 @@ Room.prototype.setX = function(newX) {
 	this.group.position.x = newX;
 };
 
-Room.prototype.tweenToX = function(x) {
+Room.prototype.getPixelWidth = function(bSmall) {
+	return bSmall ? Math.round(this.width * this.SCALE_SMALL * mm.TILE_SIZE) : Math.round(this.width * this.SCALE_FULL * mm.TILE_SIZE);
+};
+
+Room.prototype.tweenToX = function(x, bCenterVertically) {
 	this.moveTween.stop();
-	this.moveTween.updateTweenData('vEnd', {x: x, y: this.group.position.y});
+	this.moveTween.updateTweenData('vEnd', {x: x, y: bCenterVertically ? Math.round(mm.game.height / 2) : this.defaultY});
 	this.moveTween.start();
 };
 
@@ -128,7 +133,11 @@ Room.prototype.tileSize = function() {
 };
 
 Room.prototype.contains = function(x, y) {
-	return this.map.getTileWorldXY(x, y, mm.TILE_SIZE, mm.TILE_SIZE, 0) !== null;
+	var row = this.getRowFromScreen(y);
+	var col = this.getColFromScreen(x);
+	var bContains = this.map.getTile(col, row, this.layers['floor']) !== null;
+
+	return bContains;
 };
 
 Room.prototype.initCreaturesMap = function() {
@@ -190,19 +199,23 @@ Room.prototype.cornerY = function() {
 };
 
 Room.prototype.getRowFromScreen = function(screenY) {
+	var rowOffset = Math.round((this.map.height - this.height) / 2);
+
 	mm.assert(this.layers.floor, "Room::getRowFromScreen: no floor layer");
 
 	var yCorner = this.cornerY();
 
-	return Math.floor(this.layers.floor.getTileY(screenY - yCorner) / this.group.scale.y);
+	return this.layers.floor.getTileY(Math.floor((screenY - yCorner) / this.group.scale.y)) + rowOffset;
 };
 
 Room.prototype.getColFromScreen = function(screenX) {
+	var colOffset = Math.round((this.map.width - this.width) / 2);
+
 	mm.assert(this.layers.floor, "Room::getColFromScreen: no floor layer");
 
 	var xCorner = this.cornerX();
 
-	return Math.floor(this.layers.floor.getTileX(screenX - xCorner) / this.group.scale.x);
+	return this.layers.floor.getTileX(Math.floor((screenX - xCorner) / this.group.scale.x)) + colOffset;
 };
 
 Room.prototype.clear = function() {
@@ -217,6 +230,11 @@ Room.prototype.clear = function() {
 			}
 		}
 	}
+};
+
+Room.prototype.debugDraw = function(ctxt) {
+	ctxt.fillStyle = "red";
+	ctxt.fillRect(this.cornerX(), this.cornerY(), 5, 5);
 };
 
 Room.prototype.generate = function() {
@@ -344,6 +362,8 @@ Room.prototype.USER_DRAG_INFO = {
 // 888          888   888  888   888  `"Y88b.    888    .oP"888   888   888    888   `"Y88b.  
 // `88b    ooo  888   888  888   888  o.  )88b   888 . d8(  888   888   888    888 . o.  )88b 
 //  `Y8bood8P'  `Y8bod8P' o888o o888o 8""888P'   "888" `Y888""8o o888o o888o   "888" 8""888P' 
+//
+///////////////////////////////////////////////////////////////////////////////
 
 Room.prototype.MAX_SIZE = 12;	// Why do multiplication tables go up to 12?
 Room.prototype.MIN_SIZE = 3;

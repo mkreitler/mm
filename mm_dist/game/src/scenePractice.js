@@ -2,7 +2,7 @@ mm.scenes.practice = {
 	SPACING_FACTOR_Y: 0.05,
 	SELECTED_CHAR: '*',
 	DRAG_ALPHA: 0.33,
-	UI_GROUP_Y_FACTOR: (1.0 / 20.0),
+	UI_GROUP_Y_FACTOR: (68.0 / 80.0),
 	NUMBER_LINE_MAX_UNIT: 40,
 	NUMBER_LINE_MIN_UNIT: 10,
 	NUMBER_LINE_HEIGHT: (1 / 7),
@@ -10,12 +10,14 @@ mm.scenes.practice = {
 	UI_GROUP_COLOR: "#CCCCCC",
 	DARK_GREEN: "#004400",
 	ROW_FACTOR_STROKE_COLOR: "#FFFFFF",
-	MAP_HEIGHT_FACTOR: 4 / 5,
+	MAP_HEIGHT_FACTOR: 1 / 15,
 	ROOM_MARGIN: 20,
 	MAX_SPACING: 30,
 	SPELL_MENU_FACTOR: {X: 3/10, Y: 1/20},
 	BEAST_MENU_FACTOR: {X: -3/10, Y: 1/20},
 	TRAP_MENU_FACTOR: {X: 0, Y: 1/20},
+	ROOM_AREA_Y_FACTOR: 16 / 20,
+	MICRO_MAP_ROOM_SPACING: 5,
 
 	// UI
 	uiGroup: null,
@@ -33,6 +35,7 @@ mm.scenes.practice = {
 
 	adventurerGroup: null,
 	adventureTileMap: null,
+	focusMap: null,
 
 	dragInfo: null,
 
@@ -82,7 +85,7 @@ mm.scenes.practice = {
 		if (this.spellMap) this.spellMap.update();
 		if (this.trapMap) this.trapMap.update();
 		if (this.beastMap) this.beastMap.update();
-		
+
 		if (this.dragInfo && this.focusRoom) {
 			this.dragInfo.dragRow = this.focusRoom.getRowFromScreen(mm.game.input.activePointer.y);
 			this.dragInfo.dragCol = this.focusRoom.getColFromScreen(mm.game.input.activePointer.x);
@@ -224,7 +227,7 @@ mm.scenes.practice = {
 
 	createRoomElements: function() {
 		var centerImage = null;
-		var centerBandY = Math.floor(mm.height * (1 - this.MAP_HEIGHT_FACTOR));
+		var centerBandY = 0;
 		var i = 0;
 
 		this.mapGroup = mm.game.add.group();
@@ -235,7 +238,7 @@ mm.scenes.practice = {
 		this.roomsGroup.position.x = 0;
 		this.roomsGroup.position.y = centerBandY;
 
-		this.centerBand = mm.game.make.bitmapData(mm.width, mm.height - centerBandY);
+		this.centerBand = mm.game.make.bitmapData(mm.width, Math.round(mm.height * this.ROOM_AREA_Y_FACTOR));
 		this.centerBand.canvas.getContext('2d').fillStyle = this.UI_GROUP_COLOR;
 		this.centerBand.canvas.getContext('2d').fillRect(0, 0, this.centerBand.width, this.centerBand.height);
 
@@ -249,7 +252,11 @@ mm.scenes.practice = {
 		this.mapGroup.add(this.roomsGroup);
 
 		for (i=0; i<this.rooms.length; ++i) {
-			this.rooms[i] = new Room(this.roomsGroup, this.getRoomX(i, -1), Math.round(mm.game.height * this.MAP_HEIGHT_FACTOR / 2));
+			this.rooms[i] = new Room(this.roomsGroup, 0, Math.round(mm.game.height * this.MAP_HEIGHT_FACTOR));
+		}
+
+		for (i=0; i<this.rooms.length; ++i) {
+			this.rooms[i].setX(this.getRoomX(i, -1));
 		}
 	},
 
@@ -262,7 +269,7 @@ mm.scenes.practice = {
 		this.uiGroup.position.x = mm.width / 2;
 		this.uiGroup.position.y = Math.round(mm.height * this.UI_GROUP_Y_FACTOR);
 
-		this.createSpells(this.uiGroup);
+		this.createMenus(this.uiGroup);
 
 		this.labels.value = mm.game.make.bitmapText(0, 0, 'charybdis_72', '0', 36);
 		this.labels.value.anchor.x = 0;
@@ -280,7 +287,7 @@ mm.scenes.practice = {
 		this.uiGroup.add(this.labels.rowFactor);
 	},
 
-	createSpells: function(parentGroup) {
+	createMenus: function(parentGroup) {
 		var i = 0;
 		var tiles = [];
 
@@ -310,6 +317,7 @@ mm.scenes.practice = {
 		this.beastMap = new mm.tileMenu(locationData, titleData, tileData);
 
 		this.beastMap.select();
+		this.focusMap = this.beastMap;
 	},
 
 	enable: function(bEnable) {
@@ -348,56 +356,32 @@ mm.scenes.practice = {
 	},
 
 	getRoomX: function(iRoom, iSelectedRoom) {
-		var roomDxSmall = Math.round(Room.prototype.MAX_SIZE * mm.TILE_SIZE * Room.prototype.SCALE_SMALL);
-		var roomDxLarge = Math.round(Room.prototype.MAX_SIZE * mm.TILE_SIZE * Room.prototype.SCALE_FULL);
-		var spacing = 0;
+		var i = 0;
+		var dungeonWidth = 0;
+		var roomAccumWidth = 0;
 		var roomX = 0;
-		var margin = this.ROOM_MARGIN;
-		var width = mm.width - 2 * margin;
 
-		if (iSelectedRoom >= 0) {
-			spacing = (width - (this.rooms.length - 1) * roomDxSmall - roomDxLarge) / (this.rooms.length - 1);
-
-			if (spacing > this.MAX_SPACING) {
-				spacing = this.MAX_SPACING;
-				margin = mm.width - (this.rooms.length - 1) * (roomDxSmall + spacing) - roomDxLarge;
-				margin = Math.round(margin / 2);
-				width = mm.width - 2 * margin;
-				spacing = (width - (this.rooms.length - 1) * roomDxSmall - roomDxLarge) / (this.rooms.length - 1);
+		if (iRoom !== iSelectedRoom) {
+			for (i=0; i<this.rooms.length; ++i) {
+				dungeonWidth += this.rooms[i].getPixelWidth(true);
 			}
+			dungeonWidth += this.MICRO_MAP_ROOM_SPACING * (this.rooms.length - 1);
 
-			roomX = margin;
-
-			if (iRoom <= iSelectedRoom) {
-				roomX += iRoom * (spacing + roomDxSmall);
-
-				if (iRoom === iSelectedRoom) {
-					roomX += roomDxLarge / 2;
+			roomX = -Math.floor(dungeonWidth / 2);
+			for (i=0; i<this.rooms.length; ++i) {
+				if (i === iRoom) {
+					roomX += Math.round(this.rooms[i].getPixelWidth(true) / 2);
+					break;
 				}
 				else {
-					roomX += roomDxSmall / 2;
+					roomX += this.rooms[i].getPixelWidth(true);
 				}
-			}
-			else {
-				roomX += (iRoom - 1) * roomDxSmall + iRoom * spacing + roomDxLarge + roomDxSmall / 2;
+
+				roomX += this.MICRO_MAP_ROOM_SPACING;
 			}
 		}
-		else {
-			// No room selected, so space everything evenly.
-			spacing = (width - this.rooms.length * roomDxSmall) / (this.rooms.length - 1);
 
-			if (spacing > this.MAX_SPACING) {
-				spacing = this.MAX_SPACING;
-				margin = mm.width - (this.rooms.length - 1) * (roomDxSmall + spacing) - roomDxSmall;
-				margin = Math.round(margin / 2);
-				width = mm.width - 2 * margin;
-				spacing = (width - (this.rooms.length - 1) * roomDxSmall - roomDxSmall) / (this.rooms.length - 1);
-			}
-
-			roomX = margin + iRoom * (spacing + roomDxSmall) + roomDxSmall / 2;
-		}
-
-		return Math.round(-mm.width / 2 + roomX);
+		return roomX;
 	},
 
 	getSelectedRoomIndex: function(newSelectedRoom) {
@@ -434,14 +418,26 @@ mm.scenes.practice = {
 	},
 
 	onTileMapOver: function(child, pointer) {
+		var newFocusMap = null;
+
 		if (child && child.data) {
 			child.data.onPointerOver(pointer, child);
+
+			if (child.data !== this.focusMap && this.focusMap) {
+				this.focusMap.unselect();
+			}
+
+			this.focusMap = child.data;
 		}
 	},
 
 	onTileMapOut: function(child, pointer) {
 		if (child && child.data) {
-			child.data.onPointerOut(pointer, child);
+			if (child.data.onPointerOut(pointer, child)) {
+				if (child.data === this.focusMap) {
+					this.focusMap = null;
+				}
+			}
 		}
 	},
 
@@ -462,7 +458,7 @@ mm.scenes.practice = {
 			iSelected = this.getSelectedRoomIndex(newRoom);
 
 			for (i=0; i<this.rooms.length; ++i) {
-				this.rooms[i].tweenToX(this.getRoomX(i, iSelected));
+				this.rooms[i].tweenToX(this.getRoomX(i, iSelected), this.rooms[i] === newRoom ? true : false);
 			}
 
 			if (this.focusRoom) {
@@ -489,7 +485,9 @@ mm.scenes.practice = {
 				mm.broadcast("EndUserDrag", null);
 			}
 			else {
-				mm.broadcast("RoomSelected", this);
+				if (this.contains(mm.game.input.activePointer.x, mm.game.input.activePointer.y)) {
+					mm.broadcast("RoomSelected", this);
+				}
 			}
 		}
 	},

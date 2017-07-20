@@ -133,18 +133,22 @@ mm.tileMenu.prototype.select = function() {
 mm.tileMenu.prototype.onPointerOver = function(pointer, uiElement) {
 	this.select();
 
-	if (uiElement === this.tileLayer) {
+	if (uiElement === this.tileLayer || uiElement === this.title) {
 		this.uiUpdate = this.selectTile;
 	}
 };
 
 mm.tileMenu.prototype.onPointerOut = function(pointer, uiElement) {
-	this.unselect();
+	var bUnselected = false;
 
-	if (uiElement === this.tileLayer || uiElement === this.focusImage) {
+	if (uiElement === this.focusImage) {
+		this.unselect();
 		this.uiUpdate = null;
 		this.focusTile = null;
+		bUnselected = true;
 	}
+
+	return bUnselected;
 };
 
 mm.tileMenu.prototype.onPointerUp = function(pointer, uiElement) {
