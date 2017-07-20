@@ -2,6 +2,7 @@ var mm = {
 	width: 1024,
 	height: 768,
 	TILE_SIZE: 24,
+	TILE_SIZE_16: 16,
 	scenes: {mainMenu: null, practice: null},
 	scene: null,
 	switchboard: {},
@@ -93,8 +94,16 @@ var mm = {
 	},
 
 	preload: function() {
-	    mm.game.load.image('world', 		'./game/res/bitmaps/world.png',		24, 24);
-	    mm.game.load.image('creatures', 	'./game/res/bitmaps/creatures.png', 24, 24);
+		mm.game.scale.minWidth = mm.width;
+		mm.game.scale.minHeight = mm.height;
+		mm.game.scale.maxWidth = mm.width;
+		mm.game.scale.maxHeight = mm.height;
+		mm.game.scale.pageAlignHorizontally = true;
+		mm.game.scale.scaleMode = Phaser.ScaleManager.SHOW_ALL;		
+
+	    mm.game.load.image('world', 		'./game/res/bitmaps/world.png',		mm.TILE_SIZE, mm.TILE_SIZE);
+	    mm.game.load.image('creatures', 	'./game/res/bitmaps/creatures.png', mm.TILE_SIZE, mm.TILE_SIZE);
+	    mm.game.load.image('items', 		'./game/res/bitmaps/items.png', 	mm.TILE_SIZE_16, mm.TILE_SIZE_16);
 
 	    mm.game.load.bitmapFont('charybdis_72', './game/res/fonts/charybdis_72/font.png', './game/res/fonts/charybdis_72/font.fnt');
 	},
@@ -109,6 +118,8 @@ var mm = {
 		mm.listenFor('addKeyAction', mm);
 		mm.listenFor('removeKeyAction', mm);
 		mm.listenFor('loadScene', mm);
+
+		mm.game.stage.smoothed = false;
 
 		for (key in mm.scenes) {
 			mm.assert(mm.scenes[key], "undefined scene (" + key + ")");
